@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pre-game policy draft v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "nation", "preset", "budget", "intent", "seed"],
+  "properties": {
+    "version": { "const": 1 },
+    "nation": { "enum": ["federation", "republic", "dominion", "union"] },
+    "preset": { "enum": ["planned", "liberal", "security"] },
+    "intent": { "type": "string", "maxLength": 2000 },
+    "seed": { "type": "integer", "minimum": 1, "maximum": 999999 },
+    "budget": {
+      "type": "object",
+      "description": "Shares must additionally sum to 100 in application validation.",
+      "additionalProperties": false,
+      "required": ["industry", "research", "defense"],
+      "properties": {
+        "industry": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "research": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "defense": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}

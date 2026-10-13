@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+cmake-build-*/
+.idea/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
