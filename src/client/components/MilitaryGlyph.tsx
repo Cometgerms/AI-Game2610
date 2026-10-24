@@ -1,0 +1,2 @@
+/** @requires A 24-unit SVG coordinate space. @ensures A general force symbol rather than a specific unit type. */
+export function MilitaryGlyph(){return <g fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 20 5v7c0 5-4 8-8 10-4-2-8-5-8-10V5Z" fill="currentColor" fillOpacity=".07"/><path d="m7 6 2 1 7 9M17 6l-2 1-7 9M13.5 15.5l3-2M7.5 13.5l3 2M15.5 16l1.5 2M8.5 16 7 18"/></g>;}

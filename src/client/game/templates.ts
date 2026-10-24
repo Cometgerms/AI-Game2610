@@ -1,5 +1,7 @@
-export type DoctrineTemplate = { id: string; name: string; text: string };
-export const TEMPLATE_KEY = 'sovereign.templates.v1';
+import { isDoctrine, migrateDoctrine, migrateText, type Doctrine } from './doctrine';
+
+export type DoctrineTemplate = { id: string; name: string; doctrine: Doctrine };
+export const TEMPLATE_KEY = 'sovereign.templates.v2';
 
 /** @requires Untrusted browser data. @ensures Only bounded, uniquely identified text templates pass. */
 export function isTemplateLibrary(value: unknown): value is DoctrineTemplate[] {
@@ -7,16 +9,16 @@ export function isTemplateLibrary(value: unknown): value is DoctrineTemplate[] {
   return value.every(item => item && typeof item === 'object'
     && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 80
     && typeof item.name === 'string' && item.name.trim().length > 0 && item.name.length <= 60
-    && typeof item.text === 'string' && item.text.trim().length > 0 && item.text.length <= 2000)
+    && isDoctrine(item.doctrine))
     && new Set(value.map(item => item.id)).size === value.length
     && new Set(value.map(item => item.name)).size === value.length;
 }
 
 /** @requires Existing library, name, text and unique ID for new entries. @ensures Updating a name preserves other templates. */
-export function saveTemplate(library: DoctrineTemplate[], name: string, text: string, id: string): DoctrineTemplate[] {
+export function saveTemplate(library: DoctrineTemplate[], name: string, doctrine: Doctrine, id: string): DoctrineTemplate[] {
   const normalized = name.trim();
   const existing = library.find(item => item.name === normalized);
-  const template = { id: existing?.id ?? id, name: normalized, text };
+  const template = { id: existing?.id ?? id, name: normalized, doctrine: structuredClone(doctrine) };
   const next = existing ? library.map(item => item.id === existing.id ? template : item) : [...library, template];
   if (!isTemplateLibrary(next)) throw new Error('Invalid template or library limit reached.');
   return next;
@@ -25,7 +27,16 @@ export function saveTemplate(library: DoctrineTemplate[], name: string, text: st
 /** @requires Browser environment; storage may be unavailable. @ensures Corrupt data is never used as a template. */
 export function loadTemplates(): DoctrineTemplate[] {
   try {
-    const data: unknown = JSON.parse(localStorage.getItem(TEMPLATE_KEY) ?? '[]');
-    return isTemplateLibrary(data) ? data : [];
+    const data: unknown = JSON.parse(localStorage.getItem(TEMPLATE_KEY) ?? localStorage.getItem('sovereign.templates.v1') ?? '[]');
+    return migrateTemplates(data);
   } catch { return []; }
+}
+
+/** @requires Untrusted library data. @ensures Legacy templates keep their names and original prose. */
+export function migrateTemplates(data: unknown): DoctrineTemplate[] {
+  if (isTemplateLibrary(data)) return data;
+  if (!Array.isArray(data) || data.length > 20) return [];
+  const result = data.map(item => item && typeof item.text === 'string' && item.text.length <= 2000
+    ? { id: item.id, name: item.name, doctrine: migrateText(item.text) } : item ? { id: item.id, name: item.name, doctrine: migrateDoctrine(item.doctrine) } : null);
+  return isTemplateLibrary(result) ? result : [];
 }

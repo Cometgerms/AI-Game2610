@@ -1,16 +1,20 @@
 {
-  "name": "sovereign-prototype",
+  "name": "strat-prototype",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "tsx --test tests/frontend/*.test.ts",
-    "test:ui": "node tests/browser/preparation.mjs"
+    "test": "tsx --test tests/frontend/*.test.ts tests/network/*.test.ts tests/dashboard/*.test.ts tests/treaties/*.test.ts tests/strategy/*.test.ts tests/atlas/*.test.ts tests/combat/*.test.ts tests/practice-feedback/*.test.ts tests/forecast/*.test.ts",
+    "test:ui": "node tests/browser/preparation.mjs",
+    "test:responsive": "node tests/browser/responsive.mjs",
+    "test:onboarding": "node tests/browser/onboarding.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "animejs": "^4.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.186.1"

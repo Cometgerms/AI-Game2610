@@ -1,0 +1,50 @@
+.login-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 70px; max-width: 1100px; margin: 80px auto; align-items: center; }
+.login-layout h1 { font-size: clamp(40px, 6vw, 80px); line-height: 1.02; letter-spacing: -.055em; font-weight: 900; margin: 25px 0; }
+.login-layout p { color: #aaa; line-height: 1.7; font-size: 14px; }
+.login-card { padding: 32px; border: 1px solid #444; background: #1b1b1b; }
+.login-card h2 { font-size: 23px; margin: 0 0 25px; }
+.login-card label { display: block; font-size: 13px; color: #bbb; margin: 18px 0; }
+.login-card input { display: block; width: 100%; margin-top: 9px; background: #111; color: #eee; border: 1px solid #555; padding: 12px; }
+.login-divider { margin: 28px 0 14px; color: #aaa; font: 11px monospace; border-top: 1px solid #444; padding-top: 24px; }
+.login-card [role=alert], .connection-error { color: #ff8ca1; }
+.country-switcher > .country-seat { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 19px 14px; border-right: 1px solid #353535; border-bottom: 3px solid transparent; background: #181818; color: #aaa; }
+.country-seat.mine { color: white; background: #242424; border-bottom-color: #ec204b; }
+.country-seat:last-child { border-right: 0; }
+.network-links { font-size: 13px; padding: 16px; border: 1px solid #444; overflow-wrap: anywhere; line-height: 1.8; }
+.network-links a { color: #eee; }
+.draft-status { color: #aaa; font-size: 12px; margin: 10px 0; }
+.account-menu button { color: #eee; border: 1px solid #666; background: transparent; padding: 10px; }
+@media(max-width:850px) { .login-layout { grid-template-columns: 1fr; margin: 35px auto; gap: 30px; } .country-switcher > .country-seat:last-child { grid-column: 1 / -1; } }
+
+/* Room actions retain their own width instead of inheriting form-button flex. */
+.page-heading:not(.headquarters-heading) { gap: 24px; flex-wrap: wrap; }
+.page-heading:not(.headquarters-heading) > div { flex: 1 1 240px; min-width: 0; }
+.page-heading:not(.headquarters-heading) h1 { overflow-wrap: anywhere; }
+.page-heading > button { flex: 0 0 auto; width: auto; max-width: 100%; }
+.join-form { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; align-items: end; }
+.join-form > button { flex: none; min-width: 130px; }
+.doctrine-navigation { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 18px 0; }
+.doctrine-tile { position: relative; min-width: 0; min-height: 88px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 10px; color: #b2b2b2; background: #181818; border: 1px solid #373737; text-align: left; }
+.doctrine-tile svg { width: 24px; height: 24px; flex-shrink: 0; }
+.doctrine-tile span { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.doctrine-tile i { position: absolute; top: 12px; right: 10px; width: 3px; height: 3px; background: #454545; }
+.doctrine-tile i.filled { background: #aaa; }
+.doctrine-tile:hover { background: #252525; border-color: #777; color: white; }
+.doctrine-tile.active { color: #fff; background: #252525; border-color: #d0d0d0; box-shadow: inset 0 -2px #eb1748; }
+.doctrine-tile.active svg { color: #ed365f; }
+.doctrine-focus { border: 1px solid #414141; background: #171717; padding: 18px; }
+.doctrine-focus-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
+.doctrine-focus-heading label { color: #eee; font-size: 16px; font-weight: 700; }
+.doctrine-focus-heading span { color: #929292; font: 11px monospace; }
+.doctrine-focus textarea { display: block; min-height: 145px; padding: 0; border: 0; background: transparent; font-size: 14px; line-height: 1.8; color: #d3d3d3; }
+.doctrine-focus textarea:focus-visible { outline-offset: 5px; }
+.modular-doctrine .template-library { margin-bottom: 16px; }
+.modular-doctrine .input-note { margin-top: 12px; }
+@media(max-width:600px) {
+  .join-form { grid-template-columns: minmax(0,1fr); }
+  .join-form > button { width: 100%; }
+  .doctrine-navigation { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .doctrine-tile { min-height: 68px; flex-direction: row; align-items: center; justify-content: flex-start; padding: 12px; }
+  .doctrine-tile span { font-size: 13px; }
+}
+.guest-progress-note { margin: 0 0 18px; padding: 12px 14px; border-left: 2px solid #ed365f; background: #242020; color: #c5bdbf; font-size: 13px; line-height: 1.7; }

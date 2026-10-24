@@ -1,0 +1,25 @@
+import {useState} from 'react';
+import type {GameState,Order} from '../game/sandbox';
+import type {Language} from '../game/policy';
+import type {Scenario} from '../game/scenarios';
+import {navalTotal,seaNames} from '../game/ocean';
+
+export function NavalDesk({state,nation,scenario,language,selected,onSelect,onOrder}:{state:GameState;nation:number;scenario:Scenario;language:Language;selected:number;onSelect:(id:number)=>void;onOrder:(order:Order)=>void}){
+  const [origin,setOrigin]=useState(-1),[amount,setAmount]=useState(2),[target,setTarget]=useState((nation+1)%5);
+  const t=(en:string,zh:string)=>language==='en'?en:zh,oceans=state.ocean??[],country=state.nations[nation],zone=oceans[selected];
+  if(!zone)return <p>{t('No ocean record in this historical snapshot.','此历史快照没有海洋记录。')}</p>;
+  const coastal=(id:number)=>oceans[id].ports.some(r=>state.regions[r].owner===nation),coast=oceans.some(z=>coastal(z.id));
+  const available=origin<0?country.navalReserve??0:oceans[origin].fleets[nation],valid=Number.isInteger(amount)&&amount>0&&amount<=available;
+  const capacity=2+Math.floor(country.resources.industry/30);
+  const peace=state.treaties.some(p=>p.status==='active'&&[p.from,p.to].includes(nation)&&[p.from,p.to].includes(target)&&(p.kind==='nonaggression'||p.kind==='ceasefire'||p.clauses?.some(c=>c.kind==='peace')));
+  return <section className="order-section command-section naval-desk"><h3>{t('Maritime command','海洋指挥')}</h3><div className="naval-stats"><span>{t('Reserve','预备舰队')}<b>{country.navalReserve??0}</b></span><span>{t('Deployed','已部署')}<b>{navalTotal(state,nation)-(country.navalReserve??0)}</b></span><span>{t('Transport / turn','每回合运力')}<b>{navalTotal(state,nation)*3+country.tech.logistics*5}</b></span></div>
+    <p>{t('Patrols establish control without starting a war. Water stays open unless its controller explicitly blockades a country.','巡逻以海上力量争夺控制权，不自动宣战。只有控制者明确封锁某国时，海路才对该国关闭。')}</p>
+    <label>{t('Sea zone','海域')}<select aria-label={t('Sea zone','海域')} value={selected} onChange={e=>onSelect(Number(e.target.value))}>{oceans.map(z=><option key={z.id} value={z.id}>{String.fromCharCode(65+z.id)} · {seaNames[z.id][language==='en'?0:1]}</option>)}</select></label>
+    <div className="sea-control-card"><strong>{zone.owner<0?t('Uncontrolled / contested','未控制 / 争夺中'):scenario.nations[zone.owner].name[language]}</strong><span>{zone.blockade<0?t('Open passage','开放通航'):t('Blockading ','封锁：')+scenario.nations[zone.blockade].name[language]}</span><div>{zone.fleets.map((fleet,i)=>fleet>0&&<small key={i} style={{color:scenario.nations[i].color}}>{scenario.nations[i].name[language]} · {fleet}</small>)}</div></div>
+    <div className="form-pair"><label>{t('Fleet source','舰队来源')}<select aria-label={t('Fleet source','舰队来源')} value={origin} onChange={e=>setOrigin(Number(e.target.value))}><option value={-1}>{t('Reserve','预备舰队')} · {country.navalReserve??0}</option>{oceans.map(z=><option key={z.id} value={z.id}>{String.fromCharCode(65+z.id)} · {z.fleets[nation]}</option>)}</select></label><label>{t('Fleet strength','舰队规模')}<input aria-label={t('Fleet strength','舰队规模')} type="number" min={1} max={10000} value={amount} onChange={e=>setAmount(Number(e.target.value))}/></label></div>
+    <div className="action-grid"><button disabled={!valid||(origin<0?!coastal(selected):!oceans[origin].neighbors.includes(selected))} onClick={()=>onOrder({kind:'patrol',from:origin,to:selected,amount})}>{t('Deploy patrol','部署巡逻')}</button><button disabled={!valid||origin<0||!coast} onClick={()=>onOrder({kind:'recall',from:origin,amount})}>{t('Recall to reserve','撤回预备')}</button><button disabled={!coast||!Number.isInteger(amount)||amount<1||amount>Math.min(20,capacity)} onClick={()=>onOrder({kind:'build_fleet',amount})}>{t('Build fleet','建造舰队')}</button></div>
+    <p className="connection-note">{t(`Build: 10 funds + 3 energy / ship; capacity ${capacity}. New ships deploy next turn. Patrol: ceil(strength / 4) energy. Deployed upkeep: ceil(total / 3) funds + ceil(total / 4) energy.`,`造舰每艘消耗 10 国库、3 能源；本回合产能 ${capacity}。新舰下回合可部署。巡逻消耗 ⌈规模÷4⌉ 能源。已部署舰队每回合维护：⌈总量÷3⌉ 国库 + ⌈总量÷4⌉ 能源。`)}</p>
+    {zone.owner===nation&&<><label>{t('Blockade target','封锁对象')}<select aria-label={t('Blockade target','封锁对象')} value={target} onChange={e=>setTarget(Number(e.target.value))}>{scenario.nations.map((n,i)=>i!==nation&&<option key={i} value={i}>{n.name[language]}</option>)}</select></label><div className="action-grid"><button disabled={peace} onClick={()=>onOrder({kind:'blockade',from:selected,to:target})}>{t('Impose blockade','实施封锁')}</button><button onClick={()=>onOrder({kind:'open_sea',from:selected})}>{t('Open passage','开放通航')}</button></div>{peace&&<p>{t('A signed peace prevents this blockade.','已签署的和平协议禁止这次封锁。')}</p>}</>}
+    <p className="connection-note">{t('Control: fleet × (1 + .15 military tech + .10 logistics); ties contest. +2 funds and +2 military score per sea. A blocked trade pauses without a trust penalty; alternative routes remain usable.','控制力：舰队 ×（1 + .15 军事科技 + .10 后勤）；平局进入争夺。每海域 +2 国库产出、+2 军事分。被封锁贸易暂停且不扣信誉；仍可绕行其他开放海域。')}</p>
+  </section>;
+}

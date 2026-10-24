@@ -1,4 +1,5 @@
 node_modules/
+.data/
 dist/
 build/
 cmake-build-*/
@@ -8,3 +9,6 @@ cmake-build-*/
 !.env.example
 *.log
 *.tsbuildinfo
+docs/Gameplay.md
+output/pdf/gameplay-report/
+output/pdf/sovereign-gameplay-report.zip

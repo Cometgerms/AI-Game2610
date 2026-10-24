@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,mkdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {spawn} from 'node:child_process';
+import {chromium} from 'playwright';
+
+const temp=await mkdtemp(join(tmpdir(),'strat-atmosphere-')),base='http://127.0.0.1:5190';
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5190'],{windowsHide:true,env:{...process.env,GAME_DATA_PATH:join(temp,'rooms.json')},stdio:'ignore'});
+let browser,current;
+try {
+  for(let i=0;i<80;i++){try{if((await fetch(base+'/api/config')).ok)break;}catch{}await new Promise(r=>setTimeout(r,250));}
+  browser=await chromium.launch({channel:'msedge',headless:true});
+  await mkdir('build/screenshots',{recursive:true});
+  const failures=[];
+  const context=await browser.newContext({viewport:{width:1500,height:1050}});
+  const page=await context.newPage();current=page;page.on('pageerror',e=>failures.push(e.message));
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.goto(base);
+  await page.getByLabel('Player name',{exact:true}).fill('Atlas preview');
+  await page.getByRole('button',{name:/Play as guest/}).click();await page.locator('.profile-identity h2').waitFor();
+  await page.getByRole('button',{name:/Learn by playing/}).click();await page.getByRole('button',{name:/Start practice/}).click();
+  await page.locator('.spotlight-card').waitFor();await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Reset map',exact:true}).click();
+  await page.waitForTimeout(700);
+  const river=page.locator('.river-current').first(),sea=page.locator('.sea-current').first(),cloud=page.locator('.map-cloud-drift').first();
+  const values=async()=>Promise.all([river.evaluate(e=>getComputedStyle(e).strokeDashoffset),sea.evaluate(e=>getComputedStyle(e).strokeDashoffset),cloud.evaluate(e=>getComputedStyle(e).transform),page.locator('.sea-swell').first().evaluate(e=>getComputedStyle(e).opacity),page.locator('.shore-surf').first().evaluate(e=>getComputedStyle(e).strokeWidth)]);
+  const before=await values();await page.waitForTimeout(500);const after=await values();
+  after.forEach((v,i)=>assert.notEqual(v,before[i],'River, sea and clouds must move'));
+  await page.locator('.mission-atlas').screenshot({path:'build/screenshots/atmosphere-world.png'});
+  const selection=await page.locator('.flat-region[aria-pressed=true]').getAttribute('aria-label');
+  const cloudBox=await page.locator('.map-cloud').first().boundingBox();await page.mouse.click(cloudBox.x+cloudBox.width*.2,cloudBox.y+cloudBox.height*.5);
+  await page.waitForFunction(()=>document.querySelector('.map-cloud')?.getAttribute('data-phase')==='gone');
+  assert.equal(await page.locator('.flat-region[aria-pressed=true]').getAttribute('aria-label'),selection,'Popping cannot select territory');
+  await page.getByRole('button',{name:'Focus capital',exact:true}).click();await page.waitForTimeout(650);
+  const box=await page.locator('.map-cloud').nth(1).boundingBox();
+  const view=await page.locator('.flat-map').getAttribute('viewBox');
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+20,{steps:6});await page.mouse.up();
+  assert.notEqual(await page.locator('.flat-map').getAttribute('viewBox'),view,'Dragging a cloud still pans');
+  assert.equal(await page.locator('.map-cloud').nth(1).getAttribute('data-phase'),'alive','Drag must not pop cloud');
+  await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(150);
+  const still=await values();await page.waitForTimeout(450);assert.deepEqual(await values(),still,'Reduced motion stops ambient animation');
+  await page.locator('.map-cloud').nth(1).focus();await page.keyboard.press('Enter');
+  await page.waitForFunction(()=>document.querySelectorAll('.map-cloud')[1]?.getAttribute('data-phase')==='gone');
+  await page.getByRole('button',{name:'Reset map',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('.mission-atlas').screenshot({path:'build/screenshots/atmosphere-mobile.png'});
+  await page.waitForFunction(()=>document.querySelector('.map-cloud')?.getAttribute('data-phase')==='alive',{},{timeout:22000});
+  assert.equal(await page.locator('.map-cloud').count(),4,'Clouds respawn without accumulating nodes');
+  assert.deepEqual(failures,[]);console.log('PASS: river/sea flow, cloud drift and popping, drag-through without accidental pop, keyboard, reduced motion, mobile layout.');
+} finally {await browser?.close();const exited=new Promise(r=>server.once('exit',r));server.kill();await exited;await rm(temp,{recursive:true,force:true});}

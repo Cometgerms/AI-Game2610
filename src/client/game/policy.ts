@@ -1,12 +1,14 @@
+import { createDoctrine, isDoctrine, migrateDoctrine, migrateText, type Doctrine } from './doctrine';
+
 export type Language = 'en' | 'zh';
 export type Localized = Record<Language, string>;
 export type Budget = { industry: number; research: number; defense: number };
 export type Policy = {
-  version: 1;
+  version: 2;
   nation: string;
   preset: string;
   budget: Budget;
-  intent: string;
+  doctrine: Doctrine;
   seed: number;
 };
 
@@ -24,8 +26,8 @@ export const presets: { id: string; name: Localized; description: Localized; bud
 ];
 
 /** @requires A known preset and language. @ensures A fresh, independently editable draft. */
-export function createPolicy(language: Language = 'en'): Policy {
-  return { version: 1, nation: nations[0].id, preset: presets[0].id, budget: { ...presets[0].budget }, intent: presets[0].intent[language], seed: 2610 };
+export function createPolicy(): Policy {
+  return { version: 2, nation: nations[0].id, preset: presets[0].id, budget: { ...presets[0].budget }, doctrine: createDoctrine(), seed: 2610 };
 }
 
 /** @requires Untrusted saved data is allowed. @ensures Only bounded, recognized drafts pass. */
@@ -35,11 +37,23 @@ export function isPolicy(value: unknown): value is Policy {
   if (!p.budget || typeof p.budget !== 'object') return false;
   if (Object.keys(p).length !== 6 || Object.keys(p.budget).length !== 3) return false;
   const allocations = [p.budget.industry, p.budget.research, p.budget.defense];
-  return p.version === 1 && nations.some(n => n.id === p.nation) && presets.some(n => n.id === p.preset)
-    && typeof p.intent === 'string' && p.intent.length <= 2000
+  return p.version === 2 && nations.some(n => n.id === p.nation) && presets.some(n => n.id === p.preset)
+    && isDoctrine(p.doctrine)
     && Number.isInteger(p.seed) && Number(p.seed) >= 1 && Number(p.seed) <= 999999
     && allocations.every(n => Number.isInteger(n) && n >= 0 && n <= 100)
     && allocations.reduce((a, b) => a + b, 0) === 100;
+}
+
+/** @requires Untrusted saved v1/v2 data. @ensures Legacy drafts survive the modular upgrade without deletion. */
+export function migratePolicy(value: unknown): Policy | null {
+  if (isPolicy(value)) return value;
+  if (!value || typeof value !== 'object') return null;
+  const old = value as Record<string, unknown>;
+  if (old.version === 2) { const updated = { ...old, doctrine: migrateDoctrine(old.doctrine) }; return isPolicy(updated) ? updated : null; }
+  if (old.version !== 1 || typeof old.intent !== 'string' || old.intent.length > 2000) return null;
+  const builtin = presets.find(p => p.intent.en === old.intent || p.intent.zh === old.intent);
+  const upgraded = { version: 2, nation: old.nation, preset: old.preset, budget: old.budget, seed: old.seed, doctrine: builtin ? createDoctrine(builtin.id) : migrateText(old.intent) };
+  return isPolicy(upgraded) ? upgraded : null;
 }
 
 /** @requires Valid budget, known field and integer 0..100. @ensures Total allocation stays 100. */

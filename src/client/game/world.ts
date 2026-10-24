@@ -2,7 +2,7 @@ export type Point = { x: number; y: number };
 export type Region = { id: number; center: Point; polygon: Point[]; nation: number; landmass: number; elevation: number; terrain: 'mountain' | 'plateau' | 'plain' | 'river' | 'island' };
 export type Peak = { center: Point; radius: number; height: number; region: number };
 export type RiverPoint = Point & { width: number };
-export type TerrainWorld = { seed: number; regions: Region[]; landforms: Point[][]; peaks: Peak[]; rivers: RiverPoint[][] };
+export type TerrainWorld = { seed: number; regions: Region[]; landforms: Point[][]; peaks: Peak[]; rivers: RiverPoint[][]; nationShapes?: Point[][]; plateau?: Point };
 export const WIDTH = 1000;
 export const HEIGHT = 720;
 let cached: TerrainWorld | undefined;
@@ -14,7 +14,7 @@ function random(seed: number): () => number {
 }
 
 /** @requires Polygon and distinct sites. @ensures A clipped province stays on its own landmass. */
-function clip(polygon: Point[], a: Point, b: Point): Point[] {
+export function clip(polygon: Point[], a: Point, b: Point): Point[] {
   const dx = b.x - a.x, dy = b.y - a.y;
   const offset = (b.x * b.x + b.y * b.y - a.x * a.x - a.y * a.y) / 2;
   const distance = (p: Point) => p.x * dx + p.y * dy - offset;
@@ -75,12 +75,14 @@ export function riverX(y: number, seed: number): number {
 
 /** @requires Generated world. @ensures Ocean is never assigned a nation. */
 export function regionAt(world: TerrainWorld, point: Point): Region | undefined {
+  const nation = world.nationShapes?.findIndex(polygon => contains(polygon, point));
+  if (nation === -1) return undefined;
   const landmass = world.landforms.findIndex(polygon => contains(polygon, point));
   if (landmass < 0) return undefined;
   let best: Region | undefined;
   let distance = Infinity;
   for (const r of world.regions) {
-    if (r.landmass !== landmass) continue;
+    if (r.landmass !== landmass || (nation !== undefined && r.nation !== nation)) continue;
     const current = (point.x - r.center.x) ** 2 + (point.y - r.center.y) ** 2;
     if (current < distance) { best = r; distance = current; }
   }
@@ -92,7 +94,7 @@ export function sampleHeight(world: TerrainWorld, point: Point, region = regionA
   if (!region) return 0;
   const shore = Math.min(1, edgeDistance(point, world.landforms[region.landmass]) / 30);
   const lowland = 45 + 12 * Math.sin(point.x / 56) * Math.cos(point.y / 63);
-  const plateauDistance = Math.hypot((point.x - 275) / 125, (point.y - 330) / 140);
+  const plateauDistance = Math.hypot((point.x - (world.plateau?.x ?? 275)) / 125, (point.y - (world.plateau?.y ?? 330)) / 140);
   const ramp = Math.max(0, Math.min(1, (1 - plateauDistance) / .35));
   const plateau = 330 * ramp * ramp * (3 - 2 * ramp);
   let height = lowland + (region.landmass === 0 ? plateau : 35);
@@ -101,7 +103,7 @@ export function sampleHeight(world: TerrainWorld, point: Point, region = regionA
     const distance = Math.hypot(point.x - peak.center.x, point.y - peak.center.y) / peak.radius;
     if (distance < 1) height += peak.height * (1 - distance * distance) ** 2;
   }
-  if (region.landmass === 0 && point.y >= 178) {
+  if (!world.nationShapes && region.landmass === 0 && point.y >= 178) {
     const width = 2 + Math.max(0, point.y - 178) / 85;
     const distance = Math.abs(point.x - riverX(point.y, world.seed));
     const blend = Math.max(0, Math.min(1, (distance - width * .6) / (width * 2.5)));

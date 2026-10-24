@@ -1,14 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Pre-game policy draft v1",
+  "title": "Pre-game bilingual modular policy draft v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "nation", "preset", "budget", "intent", "seed"],
+  "required": ["version", "nation", "preset", "budget", "doctrine", "seed"],
   "properties": {
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "nation": { "enum": ["federation", "republic", "dominion", "union"] },
     "preset": { "enum": ["planned", "liberal", "security"] },
-    "intent": { "type": "string", "maxLength": 2000 },
+    "doctrine": {
+      "type": "object", "additionalProperties": false, "required": ["en", "zh"],
+      "properties": { "en": { "$ref": "#/$defs/modules" }, "zh": { "$ref": "#/$defs/modules" } }
+    },
     "seed": { "type": "integer", "minimum": 1, "maximum": 999999 },
     "budget": {
       "type": "object",
@@ -19,6 +22,22 @@
         "industry": { "type": "integer", "minimum": 0, "maximum": 100 },
         "research": { "type": "integer", "minimum": 0, "maximum": 100 },
         "defense": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    }
+  },
+  "$defs": {
+    "modules": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ideology", "political", "economy", "diplomacy", "military", "society", "technology", "notes"],
+      "properties": {
+        "ideology": { "type": "string", "maxLength": 1000 },
+        "political": { "type": "string", "maxLength": 1000 },
+        "society": { "type": "string", "maxLength": 1000 },
+        "technology": { "type": "string", "maxLength": 1000 },
+        "economy": { "type": "string", "maxLength": 1000 },
+        "diplomacy": { "type": "string", "maxLength": 1000 },
+        "military": { "type": "string", "maxLength": 1000 },
+        "notes": { "type": "string", "maxLength": 2000 }
       }
     }
   }

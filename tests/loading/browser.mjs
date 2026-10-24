@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { chromium } from 'playwright';
+const temp = await mkdtemp(join(tmpdir(), 'strat-loading-'));
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5192'], { windowsHide: true, env: { ...process.env, GAME_DATA_PATH: join(temp, 'rooms.json') }, stdio: 'ignore' });
+const base = 'http://127.0.0.1:5192'; let browser;
+try {
+  for (let i = 0; i < 80; i++) { try { if ((await fetch(base + '/api/config')).ok) break; } catch {} await new Promise(done => setTimeout(done, 250)); }
+  browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--enable-unsafe-swiftshader'] });
+  const page = await browser.newPage(); const failures = [];
+  page.on('pageerror', error => failures.push(error.message));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const call = async (path, body, token) => { const r = await fetch(base + '/api' + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined }); const value = await r.json(); assert.equal(r.ok, true, JSON.stringify(value)); return value; };
+  const players = await Promise.all(Array.from({ length: 5 }, (_, i) => call('/auth/guest', { name: `Layout ${i}` })));
+  const keys = ['ideology','political','military','diplomacy','economy','society','technology','notes'];
+  const doctrine = { en: Object.fromEntries(keys.map(k => [k, ''])), zh: Object.fromEntries(keys.map(k => [k, ''])) };
+  let roomCode;
+  await page.addInitScript(({ token }) => sessionStorage.setItem('sovereign.player.v1', token), { token: players[0].token });
+  await page.goto(base);
+  await mkdir('build/screenshots', { recursive: true });
+  await page.setViewportSize({width:1440,height:900});
+  const room=await call('/rooms',{name:'Loading test',scenario:'frontier',doctrine},players[0].token);roomCode=room.code;
+  for(const player of players.slice(1))await call(`/rooms/${room.code}/join`,{doctrine},player.token);
+  await call(`/rooms/${room.code}/start`,{},players[0].token);
+  const opening=await call(`/rooms/${room.code}`,null,players[0].token),from=opening.session.state.regions.find(r=>r.owner===0&&r.neighbors.some(id=>opening.session.state.regions[id].owner===3));
+  await call(`/rooms/${room.code}/plan`,{turn:1,draftRevision:opening.draftRevision,plan:{...opening.session.plans[0],orders:[{kind:'attack',from:from.id,to:from.neighbors.find(id=>opening.session.state.regions[id].owner===3),amount:5}]}},players[0].token);
+  await page.evaluate(code=>sessionStorage.setItem('sovereign.room',code),room.code);await page.reload();await page.locator('.sandbox').waitFor();
+  assert.equal(await page.locator('.unit-force').count(),25);assert.equal(await page.locator('.unit-infantry').count(),0);
+  const confirm=async i=>{const r=await call(`/rooms/${roomCode}`,null,players[i].token);await call(`/rooms/${roomCode}/confirm`,{turn:r.session.state.turn,draftRevision:r.draftRevision,plan:r.session.plans[r.nation]},players[i].token);};
+  await confirm(3);
+  await page.getByRole('button',{name:'Confirm country orders',exact:false}).click();
+  const waiting=page.locator('.turn-status .turn-animation[data-phase=waiting]');await waiting.waitFor();
+  const flags=await waiting.locator('.command-beacon').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-ready')));assert.deepEqual(flags,['true','false','false','true','false']);
+  assert.deepEqual(await waiting.locator('.dispatch-token').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-post'))),['0','3']);
+  const sweep=waiting.locator('.command-sweep'),rotation=await sweep.evaluate(e=>getComputedStyle(e).transform);await page.waitForTimeout(250);assert.notEqual(await sweep.evaluate(e=>getComputedStyle(e).transform),rotation);
+  await page.screenshot({path:'build/screenshots/loading-waiting.png'});
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  const box=await page.locator('.turn-status').boundingBox();assert.ok(box.width<=390&&box.height<=844);
+  await page.screenshot({path:'build/screenshots/loading-mobile.png'});
+  await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(100);const frozen=await sweep.evaluate(e=>getComputedStyle(e).transform);await page.waitForTimeout(200);assert.equal(await sweep.evaluate(e=>getComputedStyle(e).transform),frozen);
+  await page.getByRole('button',{name:/^Keep exploring/}).click();await page.setViewportSize({width:1440,height:900});await page.emulateMedia({reducedMotion:'no-preference'});
+  for(const i of [1,2,4])await confirm(i);
+  await page.waitForFunction(()=>document.querySelector('.sandbox-status')?.textContent.includes('5 / 5'));
+  await page.route('**/api/rooms/*/resolve',async route=>{await new Promise(r=>setTimeout(r,1800));await route.continue();});
+  await page.getByRole('button',{name:/^Resolve turn/}).click();
+  const working=page.locator('.turn-status .turn-animation[data-phase=resolving]');await working.waitFor();assert.equal(await working.locator('.dispatch-token').count(),5);
+  await page.waitForTimeout(250);await page.screenshot({path:'build/screenshots/loading-resolving.png'});
+  await page.locator('.turn-review-modal').waitFor();await page.getByRole('button',{name:'Ready for next turn',exact:true}).click();
+  await page.locator('.turn-wait-modal').waitFor();assert.equal(await page.locator('.turn-wait-modal .command-beacon[data-ready=true]').count(),4);
+  for(let i=1;i<5;i++)await call(`/rooms/${roomCode}/continue`,{turn:2},players[i].token);
+  await page.locator('.turn-wait-modal').waitFor({state:'hidden'});
+  assert.deepEqual(failures,[]);console.log('PASS: actual player readiness mapping, moving tactical loader, settlement and post-review waiting, all-player release, force glyphs, mobile and reduced motion.');
+} finally {
+  await browser?.close(); const exited = new Promise(done => server.once('exit', done)); server.kill(); await exited; await rm(temp, { recursive:true, force:true });
+}
